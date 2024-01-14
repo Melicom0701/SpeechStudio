@@ -5,7 +5,7 @@ const { Buffer } = require('buffer');
 const { PassThrough } = require('stream');
 const fs = require('fs');
 const { promiseHooks } = require('v8');
-
+const { uploadToBlobStorage } = require('../config/blob');
 
 const textToSpeech = async (key, region, text, filename)=> {
     
@@ -55,19 +55,22 @@ const subscriptionKey = process.env.SPEECH_SERVICE_KEY;
 const serviceRegion = process.env.SPEECH_SERVICE_REGION;
 
 function tts(req, res) {
-    console.log(subscriptionKey)
-    textToSpeech(subscriptionKey, serviceRegion, req.body.text, null)
+    const text = req.body.text;
+    
+    const filename ='audio.mp3';
+    const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
+    const containerName = 'jhackathon'; // Replace with your container name
+
+    textToSpeech(subscriptionKey, serviceRegion, text, null)
         .then((stream) => {
-            console.log(req.body.text)
-            res.set({
-                'Content-Type': 'audio/mpeg',
-                'Transfer-Encoding': 'chunked'
-            });
-            stream.pipe(res);
+            return uploadToBlobStorage(stream, containerName, filename, connectionString);
+        })
+        .then(() => {
+            res.status(200).json({filelocation: `https://jhackathon.blob.core.windows.net/jhackathon/${filename}`});
         })
         .catch((err) => {
             console.error(err);
-            res.status(500).send("Error generating speech");
+            res.status(500).send("Error generating or uploading speech");
         });
 }
 
